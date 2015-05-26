@@ -12,9 +12,7 @@ if [ -e "$RUN_DIR/$NAME.pid" ]; then
     kill -9 `cat $RUN_DIR/$NAME.pid`
 fi
 
-echo "Removing tap from bridge..."
-ip link set tap-$NAME down
-brctl delif $BRIDGE tap-$NAME
+echo "Removing interface..."
 
 echo "Removing disk..."
 rm -rf $VM_DIR/$NAME.*

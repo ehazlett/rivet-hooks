@@ -4,23 +4,19 @@ export BASE_DIR=`pwd -P`
 popd > /dev/null
 
 export VM_DIR=$BASE_DIR/vm
-export BRIDGE=br0
-export BRIDGE_IP=192.168.180.1
-export BRIDGE_BROADCAST=192.168.180.255
-export DHCP_RANGE="192.168.180.10,192.168.180.254"
+export TAP_DEVICE=tap-rivet
+export TAP_IP=192.168.185.1
+export VDE_DOMAIN=vde.local
+export DHCP_MIN=192.168.185.2
+export DHCP_MAX=192.168.185.250
+export DHCP_RANGE="$DHCP_MIN,$DHCP_MAX"
+export NETWORK_SCRIPT=/etc/network/if-up.d/vde-rivet
+export DNSMASQ_CONF=/etc/dnsmasq.d/vde-rivet
 export LOG_DIR=$BASE_DIR/logs
 export RUN_DIR=$BASE_DIR/run
-export DNSMASQ_PID=$RUN_DIR/dnsmasq-rivet.pid
-export DNSMASQ_LOG=$LOG_DIR/dnsmasq.log
+export DNSMASQ_LOG=${DNSMASQ_LOG:-/var/log/syslog}
 export SSH_USER=${SSH_USER:-ubuntu}
 export SSH_PASS=${SSH_PASS:-trusty}
-
-export BASE_DISK=${BASE_DISK:-}
-
-if [ -z "$BASE_DISK" ]; then
-    echo "you must set the BASE_DISK environment variable"
-    exit 1
-fi
 
 # prereqs
 if [ "`id -u`" -ne "0" ]; then
@@ -47,22 +43,56 @@ if [ -z "`which dnsmasq`" ]; then
     echo -n "you must have dnsmasq installed"
     exit 1
 fi
+
+if [ -z "`which vde_switch`" ]; then
+    echo -n "you must have vde2 installed"
+    exit 1
+fi
+
 mkdir -p $VM_DIR
 mkdir -p $LOG_DIR
 mkdir -p $RUN_DIR
 
-# bridge
-if [ -z "`/sbin/ifconfig | grep br0`" ]; then
-    echo "Creating bridge..."
-    brctl addbr $BRIDGE
-    ip addr add ${BRIDGE_IP}/24 broadcast $BRIDGE_BROADCAST dev br0
-    ip link set br0 up
+# tap / vde
+if [ -z "`/sbin/ifconfig | grep $TAP_DEVICE`" ]; then
+    echo "Creating tap device and vde-switch..."
+    cat << EOF >> /etc/network/interfaces
+allow-hotplug $TAP_DEVICE
+iface $TAP_DEVICE inet static
+    address $TAP_IP
+    netmask 255.255.255.0
+    vde2-switch -
+EOF
+    ifup $TAP_DEVICE
+fi
+
+# network
+if [ ! -e $NETWORK_SCRIPT ]; then
+    echo "Configuring network..."
+    cat << EOF > $NETWORK_SCRIPT
+#!/bin/bash
+RANGE=$DHCP_RANGE
+case $IFACE in
+    lo|$TAP_DEVICE)
+        # ignore
+    ;;
+    *)
+        /sbin/iptables -t nat -A POSTROUTING -s $DHCP_RANGE -o $IFACE -j MASQUERADE
+    ;;
+esac
+EOF
+    chmod +x $NETWORK_SCRIPT
 fi
 
 # dnsmasq
-if [ ! -e $DNSMASQ_PID ]; then
-    echo "Starting dnsmasq..."
-    dnsmasq --interface=$BRIDGE --bind-interfaces --dhcp-range=$DHCP_RANGE -x $DNSMASQ_PID -8 $DNSMASQ_LOG
+if [ ! -e $DNSMASQ_CONF ]; then
+    echo "Configuring dnsmasq..."
+    cat << EOF > $DNSMASQ_CONF
+interface=$TAP_DEVICE
+dhcp-range=$TAP_DEVICE,$DHCP_RANGE
+domain=$VDE_DOMAIN,$TAP_IP,$DHCP_MAX
+EOF
+    service dnsmasq restart
 fi
 
 start_vm() {
@@ -73,7 +103,7 @@ start_vm() {
         -m $MEM \
         -netdev user,id=user-$NAME \
         -device e1000,netdev=user-$NAME,id=nic0 \
-        -netdev tap,id=t0,ifname=tap-$NAME,script=no,downscript=no \
+        -netdev vde,id=t0,sock=/var/run/vde2/$TAP_DEVICE.ctl \
         -device e1000,netdev=t0,id=nic1,mac=$MAC_ADDR \
         -boot c \
         -drive file=$DISK,if=virtio \
