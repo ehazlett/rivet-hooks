@@ -1,0 +1,21 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+source $BASE_DIR/vars.sh
+
+NAME=$1
+
+if [ -e "$RUN_DIR/$NAME.pid" ]; then
+    echo "Stopping VM.."
+    kill -9 `cat $RUN_DIR/$NAME.pid`
+fi
+
+echo "Removing tap from bridge..."
+ip link set tap-$NAME down
+brctl delif $BRIDGE tap-$NAME
+
+echo "Removing disk..."
+rm -rf $VM_DIR/$NAME.*
+rm -rf $RUN_DIR/$NAME.*

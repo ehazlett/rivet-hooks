@@ -1,0 +1,42 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+source $BASE_DIR/vars.sh
+
+NAME=$1
+
+MONITOR_FILE=$VM_DIR/$NAME.sock
+PID_FILE=$RUN_DIR/$NAME.pid
+VM_CONF=$VM_DIR/$NAME.conf
+
+if [ ! -e "$VM_CONF" ]; then
+    echo -n "unable to get $NAME configuration"
+    exit 1
+fi
+
+source $VM_CONF
+
+if [ ! -e $PID_FILE ]; then
+    start_vm
+    exit 0
+fi
+
+# check if process is running
+kill -0 $(cat ${PID_FILE}) 2>&1 > /dev/null
+
+if [ $? -ne 0 ]; then
+    # start
+    start_vm
+    exit 0
+fi
+
+if [ ! -e "$MONITOR_FILE" ]; then
+    echo -n "unable to get $NAME control socket"
+    exit 1
+fi
+
+echo "Starting $NAME"
+
+echo cont | socat - UNIX-CONNECT:$MONITOR_FILE

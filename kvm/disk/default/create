@@ -1,0 +1,57 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+source $BASE_DIR/vars.sh
+
+NAME=$1
+KEY=$2
+CPU=$3
+MEM=$4
+STORAGE=$5
+PID_FILE=$RUN_DIR/$NAME.pid
+MONITOR_FILE=$VM_DIR/$NAME.sock
+
+DISK=${VM_DIR}/$NAME.img
+MAC_ADDR=`printf '54:52:00:%02X:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))`
+
+if [ -z "$BASE_DISK" ]; then
+    echo "you must specify the BASE_DISK env var"
+fi
+
+echo $MAC_ADDR > $VM_DIR/$NAME.mac
+
+cat << EOF > $VM_DIR/$NAME.conf
+NAME=$NAME
+KEY="$KEY"
+CPU=$CPU
+MEM=$MEM
+STORAGE=$STORAGE
+PID_FILE=$PID_FILE
+MONITOR_FILE=$MONITOR_FILE
+DISK=$DISK
+MAC_ADDR=$MAC_ADDR
+EOF
+
+echo "Creating tap device..."
+ip tuntap add dev tap-$NAME mode tap
+sleep .5
+ip link set tap-$NAME up promisc on
+sleep .5
+
+echo "Adding tap to bridge..."
+brctl addif $BRIDGE tap-$NAME
+sleep .5
+
+echo "Cloning disk..."
+qemu-img convert -O raw $BASE_DISK $DISK
+
+echo "Resizing disk..."
+qemu-img resize $DISK ${STORAGE}G
+
+start_vm
+
+update_ssh_key
+
+echo "Instance created: name=$NAME ip=$IP"

@@ -1,0 +1,35 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+source $BASE_DIR/vars.sh
+
+NAME=$1
+IP=""
+
+if [ ! -e "$VM_DIR/$NAME.mac" ]; then
+    echo -n ""
+    exit 0
+fi
+
+for i in `seq 1 2`; do
+    MAC_ADDR=`cat $VM_DIR/$NAME.mac`
+    if [ -z "$MAC_ADDR" ]; then
+        echo "unable to find machine mac address"
+        exit 1
+    fi
+
+    MAC="`echo $MAC_ADDR | awk '{print tolower($0)}'`"
+
+    INFO=`grep "$MAC" $DNSMASQ_LOG | grep DHCPACK`
+
+    if [ ! -z "$INFO" ]; then
+        IP=`echo $INFO | awk '{ print $6; }'`
+        break
+    fi
+
+    sleep 1
+done
+
+echo -n $IP
