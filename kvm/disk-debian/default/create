@@ -34,16 +34,6 @@ DISK=$DISK
 MAC_ADDR=$MAC_ADDR
 EOF
 
-#echo "Creating tap device..."
-#ip tuntap add dev tap-$NAME mode tap
-#sleep .5
-#ip link set tap-$NAME up promisc on
-#sleep .5
-#
-#echo "Adding tap to bridge..."
-#brctl addif $BRIDGE tap-$NAME
-#sleep .5
-
 echo "Cloning disk..."
 qemu-img convert -O raw $BASE_DISK $DISK
 

@@ -1,0 +1,13 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+source $BASE_DIR/vars.sh
+
+NAME=$1
+IP=""
+
+get_ip
+
+echo -n $IP

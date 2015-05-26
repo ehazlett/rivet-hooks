@@ -1,0 +1,14 @@
+#!/bin/bash
+export BASE_DIR=$(dirname "$0")
+source $BASE_DIR/vars.sh
+
+NAME=$1
+
+if [ -e "$RUN_DIR/$NAME.pid" ]; then
+    echo "Stopping VM.."
+    kill -9 `cat $RUN_DIR/$NAME.pid`
+fi
+
+echo "Removing disk..."
+rm -rf $VM_DIR/$NAME.*
+rm -rf $RUN_DIR/$NAME.*

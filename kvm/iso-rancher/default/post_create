@@ -1,0 +1,8 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+IP=`$BASE_DIR/get_ip $1`
+
+echo -n "post-create: name=$1 ip=$IP"
