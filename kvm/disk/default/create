@@ -42,6 +42,8 @@ qemu-img resize $DISK ${STORAGE}G
 
 start_vm
 
-update_ssh_key
+if [ ! -z "$KEY" ]; then
+    update_ssh_key
+fi
 
 echo "Instance created: name=$NAME ip=$IP"

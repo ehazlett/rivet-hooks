@@ -122,11 +122,15 @@ update_ssh_key() {
         IP=`$BASE_DIR/get_ip $NAME`
         if [ ! -z "$IP" ]; then
             echo "Adding ssh key..."
+            USER_HOME="/home/$SSH_USER"
+            if [ "$SSH_USER" = "root" ]; then
+                USER_HOME="/root"
+            fi
 
             sshpass -p "$SSH_PASS" \
                 ssh -o StrictHostKeyChecking=no \
                 -o UserKnownHostsFile=/dev/null \
-                $SSH_USER@$IP -- mkdir -p /home/ubuntu/.ssh
+                $SSH_USER@$IP -- mkdir -p $USER_HOME/.ssh
 
             if [ $? -ne 0 ]; then
                 sleep .5
@@ -139,7 +143,7 @@ update_ssh_key() {
                 scp -o StrictHostKeyChecking=no \
                 -o UserKnownHostsFile=/dev/null \
                 $VM_DIR/$NAME.pub \
-                $SSH_USER@$IP:/home/ubuntu/.ssh/authorized_keys
+                $SSH_USER@$IP:$USER_HOME/.ssh/authorized_keys
 
             if [ $? -eq 0 ]; then
                 break
