@@ -1,0 +1,16 @@
+#!/bin/bash
+export BASE_DIR=$(dirname "$0")
+source $BASE_DIR/vars.sh
+
+NAME=$1
+
+MONITOR_FILE=$VM_DIR/$NAME.sock
+
+if [ ! -e "$MONITOR_FILE" ]; then
+    echo -n "unable to get $NAME control socket"
+    exit 1
+fi
+
+echo "Restarting $NAME"
+
+echo system_reset | socat - UNIX-CONNECT:$MONITOR_FILE

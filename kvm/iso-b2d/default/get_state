@@ -1,0 +1,29 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+source $BASE_DIR/vars.sh
+
+NAME=$1
+STATE="pending"
+
+if [ ! -e "$RUN_DIR/$NAME.pid" ]; then
+    echo -n "stopped"
+    exit 0
+fi
+
+IP=`$BASE_DIR/get_ip $NAME`
+
+if [ -z "$IP" ]; then
+    STATE="pending"
+fi
+
+if [ ! -z "$IP" ]; then
+    nc -z $IP 22
+    if [ $? -eq 0 ]; then
+        STATE="running"
+    fi
+fi
+
+echo -n $STATE

@@ -1,0 +1,71 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+export BASE_ISO_URL=${BASE_ISO_URL:-https://github.com/boot2docker/boot2docker/releases/download/v1.6.2/boot2docker.iso}
+
+source $BASE_DIR/vars.sh
+
+NAME=$1
+KEY=$2
+CPU=$3
+MEM=$4
+STORAGE=$5
+PID_FILE=$RUN_DIR/$NAME.pid
+MONITOR_FILE=$VM_DIR/$NAME.sock
+
+DISK=${VM_DIR}/$NAME.img
+MAC_ADDR=`printf '54:52:00:%02X:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))`
+
+# download base ISO if needed
+if [ ! -e $ISO_PATH ] || [ ! -z "$BASE_ISO_URL" ]; then
+    if [ -z "$BASE_ISO_URL" ]; then
+        echo "no ISO detected and env var BASE_ISO_URL was not set"
+        exit 1
+    fi
+
+    echo "downloading base OS ISO ($(basename ${BASE_ISO_URL}))"
+    curl -sSL $BASE_ISO_URL -o $ISO_PATH
+fi
+
+echo $MAC_ADDR > $VM_DIR/$NAME.mac
+
+# get local free port for initial configuration via ssh
+for i in `seq 1 10`; do
+    PORT=$(awk 'BEGIN{srand();print int(rand()*(63000-2000))+2000 }')
+    nc -z 127.0.0.1 $PORT
+    if [ $? -eq 1 ]; then
+        echo "using port $PORT for initial configuration"
+        break
+    fi
+    sleep .25
+done
+
+if [ -z "$PORT" ]; then
+    echo "unable to get local port for provisioning"
+    exit 1
+fi
+export SSH_LOCAL_PORT=$PORT
+
+cat << EOF > $VM_DIR/$NAME.conf
+NAME=$NAME
+KEY=$KEY
+CPU=$CPU
+MEM=$MEM
+STORAGE=$STORAGE
+PID_FILE=$PID_FILE
+MONITOR_FILE=$MONITOR_FILE
+DISK=$DISK
+MAC_ADDR=$MAC_ADDR
+SSH_LOCAL_PORT=$SSH_LOCAL_PORT
+EOF
+
+echo "Creating disk..."
+qemu-img create -f raw $DISK ${STORAGE}G
+
+start_vm
+
+enable_hostonly_network
+
+update_ssh_key
