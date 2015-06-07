@@ -3,7 +3,7 @@ pushd `dirname $0` > /dev/null
 export BASE_DIR=`pwd -P`
 popd > /dev/null
 
-export BASE_ISO_URL=${BASE_ISO_URL:-https://github.com/rancherio/os/releases/download/v0.3.1-rc3/machine-rancheros.iso}
+export BASE_ISO_URL=${BASE_ISO_URL:-https://github.com/rancherio/os/releases/download/v0.3.1/machine-rancheros.iso}
 
 source $BASE_DIR/vars.sh
 
@@ -17,6 +17,11 @@ MONITOR_FILE=$VM_DIR/$NAME.sock
 
 DISK=${VM_DIR}/$NAME.img
 MAC_ADDR=`printf '54:52:00:%02X:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))`
+
+if [ -z "$NAME" ] || [ -z "$CPU" ] || [ -z "$MEM" ] || [ -z "$STORAGE" ]; then
+    echo "Usage: $0 <name> <ssh-pub-key> <cpu> <mem-in-mb> <storage-in-gb>"
+    exit 1
+fi
 
 # download base ISO if needed
 if [ ! -e $ISO_PATH ]; then
