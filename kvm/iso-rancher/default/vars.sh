@@ -133,8 +133,7 @@ start_vm() {
         -name $NAME \
         -smp cpus=1,cores=$CPU \
         -m $MEM \
-        -netdev user,id=user-$NAME \
-        -device e1000,netdev=user-$NAME,id=nic0 \
+        -net user,hostfwd=tcp::$SSH_LOCAL_PORT-:22 \
         -netdev tap,id=t0,script=$NETWORK_UP_SCRIPT,downscript=$NETWORK_DOWN_SCRIPT \
         -device e1000,netdev=t0,id=nic1,mac=$MAC_ADDR \
         -drive file=$DISK,if=virtio \
