@@ -1,17 +1,20 @@
 #!/bin/bash
+#set -x
 pushd `dirname $0` > /dev/null
 export BASE_DIR=`pwd -P`
 popd > /dev/null
 
+export BRIDGE=${BRIDGE:-br0}
 export VM_DIR=$BASE_DIR/vm
-export TAP_DEVICE=tap-rivet
-export TAP_IP=192.168.185.1
-export VDE_DOMAIN=vde.local
+export BRIDGE_IP=192.168.185.1
+export BRIDGE_BROADCAST=192.168.185.255
+export LOCAL_DOMAIN=vm.local
 export DHCP_MIN=192.168.185.2
 export DHCP_MAX=192.168.185.250
 export DHCP_RANGE="$DHCP_MIN,$DHCP_MAX"
-export NETWORK_SCRIPT=/etc/network/if-up.d/vde-rivet
-export DNSMASQ_CONF=/etc/dnsmasq.d/vde-rivet
+export NETWORK_UP_SCRIPT=/etc/ovs-ifup
+export NETWORK_DOWN_SCRIPT=/etc/ovs-ifdown
+export DNSMASQ_CONF=/etc/dnsmasq.d/rivet.conf
 export LOG_DIR=$BASE_DIR/logs
 export RUN_DIR=$BASE_DIR/run
 export DNSMASQ_LOG=${DNSMASQ_LOG:-/var/log/syslog}
@@ -46,8 +49,8 @@ if [ -z "`which dnsmasq`" ]; then
     exit 1
 fi
 
-if [ -z "`which vde_switch`" ]; then
-    echo -n "you must have vde2 installed"
+if [ -z "`which ovs-vsctl`" ]; then
+    echo -n "you must have openvswitch installed (openvswitch-switch)"
     exit 1
 fi
 
@@ -55,44 +58,45 @@ mkdir -p $VM_DIR
 mkdir -p $LOG_DIR
 mkdir -p $RUN_DIR
 
-# tap / vde
-if [ -z "`/sbin/ifconfig | grep $TAP_DEVICE`" ]; then
-    echo "Creating tap device and vde-switch..."
-    cat << EOF >> /etc/network/interfaces
-allow-hotplug $TAP_DEVICE
-iface $TAP_DEVICE inet static
-    address $TAP_IP
-    netmask 255.255.255.0
-    vde2-switch -
-EOF
-    ifup $TAP_DEVICE
+# openvswitch
+ovs-ofctl show $BRIDGE > /dev/null 2>&1
+if [ "$?" = "1" ]; then
+    echo "Creating bridge..."
+    ovs-vsctl add-br $BRIDGE
+    ip addr add $BRIDGE_IP/24 broadcast $BRIDGE_BROADCAST dev $BRIDGE
+    ip link set $BRIDGE up
 fi
 
-# network
-if [ ! -e $NETWORK_SCRIPT ]; then
-    echo "Configuring network..."
-    cat << EOF > $NETWORK_SCRIPT
+# network scripts
+if [ ! -e $NETWORK_UP_SCRIPT ]; then
+    echo "Configuring network up script..."
+    cat << EOF > $NETWORK_UP_SCRIPT
 #!/bin/bash
-RANGE=$DHCP_RANGE
-case $IFACE in
-    lo|$TAP_DEVICE)
-        # ignore
-    ;;
-    *)
-        /sbin/iptables -t nat -A POSTROUTING -s $DHCP_RANGE -o $IFACE -j MASQUERADE
-    ;;
-esac
+switch='$BRIDGE'
+/sbin/ifconfig \$1 0.0.0.0 up
+ovs-vsctl add-port \${switch} \$1
 EOF
-    chmod +x $NETWORK_SCRIPT
+    chmod +x $NETWORK_UP_SCRIPT
+fi
+
+if [ ! -e $NETWORK_DOWN_SCRIPT ]; then
+    echo "Configuring network down script..."
+    cat << EOF > $NETWORK_DOWN_SCRIPT
+#!/bin/bash
+switch='$BRIDGE'
+/sbin/ifconfig \$1 0.0.0.0 down
+ovs-vsctl del-port \${switch} \$1
+EOF
+    chmod +x $NETWORK_DOWN_SCRIPT
 fi
 
 # dnsmasq
 if [ ! -e $DNSMASQ_CONF ]; then
     echo "Configuring dnsmasq..."
     cat << EOF > $DNSMASQ_CONF
-interface=$TAP_DEVICE
-dhcp-range=$TAP_DEVICE,$DHCP_RANGE
-domain=$VDE_DOMAIN,$TAP_IP,$DHCP_MAX
+interface=$BRIDGE
+dhcp-range=$BRIDGE,$DHCP_RANGE
+domain=$LOCAL_DOMAIN,$BRIDGE_IP,$DHCP_MAX
 EOF
     service dnsmasq restart
 fi
@@ -131,7 +135,7 @@ start_vm() {
         -m $MEM \
         -net nic \
         -net user,hostfwd=tcp::$SSH_LOCAL_PORT-:22 \
-        -netdev vde,id=t0,sock=/var/run/vde2/$TAP_DEVICE.ctl \
+        -netdev tap,id=t0,script=$NETWORK_UP_SCRIPT,downscript=$NETWORK_DOWN_SCRIPT \
         -device e1000,netdev=t0,id=nic1,mac=$MAC_ADDR \
         -drive file=$DISK,if=virtio \
         -cdrom $ISO_PATH \

@@ -29,6 +29,11 @@ if [ ! -e $ISO_PATH ] || [ ! -z "$BASE_ISO_URL" ]; then
     curl -sSL $BASE_ISO_URL -o $ISO_PATH
 fi
 
+if [ -z "$NAME" ] || [ -z "$CPU" ] || [ -z "$MEM" ] || [ -z "$STORAGE" ]; then
+    echo "Usage: $0 <name> <ssh-pub-key> <cpu> <mem-in-mb> <storage-in-gb>"
+    exit 1
+fi
+
 echo $MAC_ADDR > $VM_DIR/$NAME.mac
 
 # get local free port for initial configuration via ssh
