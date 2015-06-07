@@ -9,7 +9,7 @@ NAME=$1
 
 if [ -e "$RUN_DIR/$NAME.pid" ]; then
     echo "Stopping VM.."
-    kill -9 `cat $RUN_DIR/$NAME.pid`
+    $BASE_DIR/kill $NAME
 fi
 
 echo "Removing disk..."
