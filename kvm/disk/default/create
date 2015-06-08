@@ -10,14 +10,16 @@ KEY=$2
 CPU=$3
 MEM=$4
 STORAGE=$5
+IMAGE=${6:-default}
+IMAGE_EXT=${IMAGE_EXT:-img}
 PID_FILE=$RUN_DIR/$NAME.pid
 MONITOR_FILE=$VM_DIR/$NAME.sock
 
 DISK=${VM_DIR}/$NAME.img
 MAC_ADDR=`printf '54:52:00:%02X:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))`
 
-if [ -z "$BASE_DISK" ]; then
-    echo "you must specify the BASE_DISK env var"
+if [ -z "$BASE_DISK_PATH" ]; then
+    echo "you must specify the BASE_DISK_PATH env var"
 fi
 
 if [ -z "$NAME" ] || [ -z "$CPU" ] || [ -z "$MEM" ] || [ -z "$STORAGE" ]; then
@@ -40,7 +42,7 @@ MAC_ADDR=$MAC_ADDR
 EOF
 
 echo "Cloning disk..."
-qemu-img convert -O raw $BASE_DISK $DISK
+qemu-img convert -O raw $BASE_DISK_PATH/$IMAGE.$IMAGE_EXT $DISK
 
 echo "Resizing disk..."
 qemu-img resize $DISK ${STORAGE}G
