@@ -1,0 +1,11 @@
+#!/bin/bash
+pushd `dirname $0` > /dev/null
+export BASE_DIR=`pwd -P`
+popd > /dev/null
+
+source $BASE_DIR/vars.sh
+
+for IMG in `ls $VM_DIR/*.img`; do
+    path=`basename $IMG`
+    echo "${path%.*}"
+done
